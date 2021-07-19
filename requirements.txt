@@ -1,0 +1,4 @@
+black
+torch==1.9.0
+gym==0.18.3
+ipykernel==6.0.2

@@ -8,12 +8,15 @@ from collections import deque
 
 #Hyperparameters
 EPISODES = 10000
-learning_rate = 0.0005
-discount_factor = 0.98
-buffer_size, start_train = 50000, 2000
-batch_size = 32
+LEARNING_RATE = 0.0005
+DISCOUNT_FACTOR = 0.98
+BUFFER_SIZE, START_TRAIN = 50000, 2000
+BATCH_SIZE = 32
 
 class QNet(nn.Module):
+    """
+    QNet
+    """
     def __init__(self):
         super().__init__()
         self.fc1 = nn.Linear(4, 128)
@@ -27,20 +30,16 @@ class QNet(nn.Module):
         return q
 
 def minibatch_and_train(net, target_net, optimizer, buffer):
-    mini_batch = random.sample(buffer, batch_size)
-    
-    obs, acts, rewards, next_obs, done = [], [], [], [], []
-    for sample in mini_batch:
-        s, a, r, s_, d = sample
-        d = 0.0 if d else 1.0
-        obs.append(s); acts.append(a); rewards.append(r); 
-        next_obs.append(s_); done.append(d)
-    
-    obs, acts, rewards, next_obs, done = torch.tensor(obs).float(),\
-    torch.tensor(acts), torch.tensor(rewards).float(), torch.tensor(next_obs).float(),\
-    torch.tensor(done)
-    
-    target_q = rewards + discount_factor * done * target_net(next_obs).max(dim=1)[0]
+    mini_batch = random.sample(buffer, BATCH_SIZE)
+
+    obs, acts, rewards, next_obs, done =  zip(*mini_batch)
+    obs = torch.tensor(obs).float()
+    acts = torch.tensor(acts)
+    rewards = torch.tensor(rewards).float()
+    next_obs = torch.tensor(next_obs).float()
+    done = torch.tensor(done).int()
+
+    target_q = rewards + DISCOUNT_FACTOR * done * target_net(next_obs).max(dim=1)[0]
     target_q = target_q.view(-1, 1)
     q = net(obs).gather(1, acts.view(-1, 1))
     loss = F.smooth_l1_loss(q, target_q.detach())
@@ -53,9 +52,9 @@ if __name__ == '__main__':
     env = gym.make('CartPole-v1')
     net, target_net = QNet(), QNet()
     target_net.load_state_dict(net.state_dict())
-    optimizer = optim.Adam(net.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(net.parameters(), lr=LEARNING_RATE)
     
-    buffer = deque(maxlen=buffer_size)
+    buffer = deque(maxlen=BUFFER_SIZE)
     score, step = 0, 0
     epsilon, epsilon_decay = 0.6, 1-1e-5
     target_interval = 20
@@ -64,7 +63,9 @@ if __name__ == '__main__':
         obs = env.reset()
         done = False
         while not done:
+            env.render()
             q_value = net(torch.tensor(obs).float())
+            """e-greedy"""
             rand = random.random()
             if rand < epsilon:
                 action = random.randint(0, 1)
@@ -77,7 +78,7 @@ if __name__ == '__main__':
             score += reward
             epsilon *= epsilon_decay
             
-        if len(buffer) > start_train:
+        if len(buffer) > START_TRAIN:
             minibatch_and_train(net, target_net, optimizer, buffer)
         
         if ep%target_interval==0 and ep!=0:
